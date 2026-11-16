@@ -18,7 +18,7 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-Edit [src/settings.py](src/settings.py) once to point to your local IFC:
+Edit [settings.py](settings.py) once to point to your local IFC:
 
 ```python
 MODEL_PATH = r"C:\Users\Student\Downloads\building.ifc"
@@ -28,13 +28,13 @@ Keep the `r` before the quotes so Windows backslashes work as written.
 Then run without typing the path each time:
 
 ```powershell
-.\.venv\Scripts\python.exe src\runall.py
+.\.venv\Scripts\python.exe runall.py
 ```
 
 The runner imports this setting; your reusable analysis stays in its own folder.
-Relative settings paths are resolved from the A4 folder, not `src`.
+Relative settings paths are resolved from the A4 folder.
 You can still override the setting for one run by passing a quoted IFC path
-after `src\runall.py`. Avoid committing personal paths when sharing your code.
+after `runall.py`. Avoid committing personal paths when sharing your code.
 
 If `python` selects the wrong
 installation on Windows, use the Python launcher (`py`) to create the environment.
@@ -43,7 +43,7 @@ does not write it back.
 
 ## Edit the analysis, not the runner
 
-Edit [src/analyses/window_count/main.py](src/analyses/window_count/main.py).
+Edit [window_count/src/main.py](window_count/src/main.py).
 The starting `analyse(model)` counts
 `IfcWindow` instances and returns a dictionary:
 
@@ -69,10 +69,13 @@ Other functions may accept datasets instead; not every function needs a model.
 ## Inspect and share deliberately
 
 Each successful analysis writes
-`results/<analysis-name>/run-<UTC-time>-<unique-suffix>/result.json`.
+`<analysis-name>/results/run-<UTC-time>-<unique-suffix>/result.json`.
 Earlier results are not overwritten. If writing fails, an incomplete folder may
 remain; only a successful terminal message confirms that the result was written.
 New runs are local experiments, not automatic deliveries to another team.
+The optional `--results-dir <folder>` override instead writes to
+`<folder>/<analysis-name>/run-.../result.json`. Existing results from older
+layouts are left in place, not moved or deleted.
 
 For now, select one result manually, record its model version, code commit,
 settings and limitations, and share a commit-specific link to approved data.
@@ -90,8 +93,8 @@ the course example; this starter does not add a separate licence.
 
 ## Reuse the function
 
-With `src` on the Python import path, another script can import
-`from analyses.window_count.main import analyse` and call `analyse(model)`. Importing it does not load a
+With the A4 folder on the Python import path, another script can import
+`from window_count.src.main import analyse` and call `analyse(model)`. Importing it does not load a
 model or write files. The runner is only the local entry point.
 
 ## Add another analysis
@@ -101,26 +104,24 @@ Keep the model unchanged so one analysis does not affect another.
 
 ```text
 A4/
-  src/
-    settings.py
-    runall.py
-    analyses/
+  settings.py
+  runall.py
+  window_count/
+    __init__.py
+    src/
       __init__.py
-      window_count/
-        __init__.py
-        main.py
-  results/
-    window_count/
+      main.py
+    results/
       run-.../
         result.json
 ```
 
-Copy `src/analyses/window_count` to another clearly named folder and adapt its
-`main.py`. Import the new callable in `src/runall.py` and add a unique name to
-`ANALYSES`, for example:
+Copy `window_count` to another clearly named folder (without copying its results)
+and adapt its `src/main.py`. Import the new callable in `runall.py` and add its
+folder name to `ANALYSES`, for example:
 
 ```python
-from analyses.door_count.main import analyse as count_doors
+from door_count.src.main import analyse as count_doors
 
 ANALYSES = {
     "window_count": count_windows,

@@ -4,7 +4,7 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-from analyses.window_count.main import analyse as count_windows
+from window_count.src.main import analyse as count_windows
 from settings import MODEL_PATH
 
 ANALYSES = {"window_count": count_windows}
@@ -26,21 +26,20 @@ def main():
     parser = argparse.ArgumentParser(description="Run your analysis on a local IFC.")
     parser.add_argument(
         "model", nargs="?", type=Path,
-        help="IFC path (defaults to MODEL_PATH in src/settings.py)",
+        help="IFC path (defaults to MODEL_PATH in settings.py)",
     )
     parser.add_argument(
         "--results-dir",
         type=Path,
-        default=Path(__file__).resolve().parents[1] / "results",
-        help="Output directory (default: this capability's results folder)",
+        help="Optional output root; writes <root>/<analysis-name>/run-.../result.json",
     )
     args = parser.parse_args()
     if args.model is None:
         if not MODEL_PATH.strip():
-            parser.error("Set MODEL_PATH in src/settings.py or pass an IFC path.")
+            parser.error("Set MODEL_PATH in settings.py or pass an IFC path.")
         args.model = Path(MODEL_PATH)
         if not args.model.is_absolute():
-            args.model = Path(__file__).resolve().parents[1] / args.model
+            args.model = Path(__file__).resolve().parent / args.model
     if not args.model.is_file():
         parser.error(f"IFC file not found: {args.model}")
 
@@ -50,10 +49,14 @@ def main():
     run_analyses(model, args.results_dir)
 
 
-def run_analyses(model, results_dir):
+def run_analyses(model, results_dir=None):
     for name, analyse in ANALYSES.items():
         result = analyse(model)
-        output = save_result(result, Path(results_dir) / name)
+        destination = (
+            Path(__file__).resolve().parent / name / "results"
+            if results_dir is None else Path(results_dir) / name
+        )
+        output = save_result(result, destination)
         print(f"{name}: Result saved to: {output.resolve()}")
 
 

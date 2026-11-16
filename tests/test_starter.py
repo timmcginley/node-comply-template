@@ -4,6 +4,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 import ifcopenshell
@@ -11,8 +12,8 @@ import ifcopenshell.guid
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
-from main import analyse
-from runall import save_result
+from analyses.window_count.main import analyse
+from runall import run_analyses, save_result
 
 
 class StarterTests(unittest.TestCase):
@@ -30,7 +31,7 @@ class StarterTests(unittest.TestCase):
             command = [sys.executable, "-B", str(capability / "src" / "runall.py")]
             process = subprocess.run(command, cwd=root, capture_output=True, text=True)
             self.assertEqual(process.returncode, 0, process.stderr)
-            output = next((capability / "results").glob("run-*/result.json"))
+            output = next((capability / "results").glob("window_count/run-*/result.json"))
             self.assertEqual(json.loads(output.read_text()), {"window_count": 1})
             settings.write_text("MODEL_PATH = ''\n", encoding="utf-8")
             failed = subprocess.run(command, cwd=root, capture_output=True, text=True)
@@ -38,7 +39,26 @@ class StarterTests(unittest.TestCase):
             self.assertIn("Set MODEL_PATH", failed.stderr)
             override = subprocess.run(command + [str(source)], capture_output=True, text=True)
             self.assertEqual(override.returncode, 0, override.stderr)
-            self.assertEqual(len(list((capability / "results").iterdir())), 2)
+            self.assertEqual(len(list((capability / "results" / "window_count").iterdir())), 2)
+
+    def test_multiple_analyses_keep_results_separate_and_share_the_loaded_model(self):
+        model = ifcopenshell.file(schema="IFC4")
+        model.create_entity("IfcWindow", GlobalId=ifcopenshell.guid.new())
+        received = []
+
+        def second_analysis(input_model):
+            received.append(input_model)
+            return {"checked": True}
+
+        with tempfile.TemporaryDirectory() as directory:
+            with patch("runall.ANALYSES", {"window_count": analyse, "second": second_analysis}):
+                run_analyses(model, directory)
+            results = Path(directory)
+            first = next((results / "window_count").glob("run-*/result.json"))
+            second = next((results / "second").glob("run-*/result.json"))
+            self.assertEqual(json.loads(first.read_text()), {"window_count": 1})
+            self.assertEqual(json.loads(second.read_text()), {"checked": True})
+            self.assertIs(received[0], model)
 
     def test_analysis_accepts_a_model_and_distinguishes_zero(self):
         model = ifcopenshell.file(schema="IFC4")
@@ -63,7 +83,7 @@ class StarterTests(unittest.TestCase):
                 )
                 self.assertEqual(process.returncode, 0, process.stderr)
                 self.assertIn("Result saved to:", process.stdout)
-            outputs = list(results.glob("run-*/result.json"))
+            outputs = list(results.glob("window_count/run-*/result.json"))
             self.assertEqual(len(outputs), 2)
             for output in outputs:
                 self.assertEqual(json.loads(output.read_text()), {"window_count": 1})
@@ -75,13 +95,13 @@ class StarterTests(unittest.TestCase):
                 capture_output=True, text=True,
             )
             self.assertNotEqual(failed.returncode, 0)
-            self.assertEqual(len(list(results.iterdir())), 2)
+            self.assertEqual(len(list((results / "window_count").iterdir())), 2)
 
     def test_import_has_no_model_loading_or_output_side_effects(self):
         with tempfile.TemporaryDirectory() as directory:
             process = subprocess.run(
                 [sys.executable, "-c",
-                 f"import sys; sys.path.insert(0, {str(ROOT / 'src')!r}); import main, runall"],
+                 f"import sys; sys.path.insert(0, {str(ROOT / 'src')!r}); import analyses.window_count.main, runall"],
                 cwd=directory, capture_output=True, text=True,
             )
             self.assertEqual(process.returncode, 0, process.stderr)

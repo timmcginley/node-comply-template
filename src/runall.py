@@ -4,8 +4,10 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-from main import analyse
+from analyses.window_count.main import analyse as count_windows
 from settings import MODEL_PATH
+
+ANALYSES = {"window_count": count_windows}
 
 
 def save_result(result, results_dir):
@@ -45,9 +47,14 @@ def main():
     import ifcopenshell
 
     model = ifcopenshell.open(str(args.model))
-    result = analyse(model)
-    output = save_result(result, args.results_dir)
-    print(f"Result saved to: {output.resolve()}")
+    run_analyses(model, args.results_dir)
+
+
+def run_analyses(model, results_dir):
+    for name, analyse in ANALYSES.items():
+        result = analyse(model)
+        output = save_result(result, Path(results_dir) / name)
+        print(f"{name}: Result saved to: {output.resolve()}")
 
 
 if __name__ == "__main__":
